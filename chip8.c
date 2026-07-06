@@ -1,9 +1,12 @@
-
+// bool
+#include <stdbool.h>
 // uint_8t, uint_16t
 #include <stdint.h>
+// fopen, fseek, ftell, rewind, fread, fclose, SEEK_END
+#include <stdio.h>
 // malloc, calloc
 #include <stdlib.h>
-// memcpy
+// memcpy, memset
 #include <string.h> 
 
 /*
@@ -62,7 +65,7 @@ load_font_sprites()
     memcpy(MEM + FONT_MEMLOC, FONT_SPRITES, sizeof(FONT_SPRITES));
 }
 
-void
+bool
 boot_sequence()
 {
     free(CPU);
@@ -72,9 +75,11 @@ boot_sequence()
     CPU = calloc(1, sizeof(cpu_t));
     MEM = calloc(MEM_SIZE, sizeof(uint8_t));
     DISPLAY = calloc(DISPLAY_WIDTH * DISPLAY_HEIGHT, sizeof(uint8_t));
+    if (!CPU || !MEM || !DISPLAY) return 0;
 
     CPU->PC = PROG_MEMLOC;
     load_font_sprites();
+    return 1;
 }
 
 void
@@ -98,16 +103,14 @@ display_get(uint8_t x, uint8_t y)
 void
 draw_sprite(uint8_t x, uint8_t y, uint8_t number_rows)
 {
-    uint8_t sprite_row, pixel_bit;
-
     x = x % DISPLAY_WIDTH;
     y = y % DISPLAY_HEIGHT;
     CPU->VAR[0X0F] = 0;
 
     for (uint8_t dy = 0; dy < number_rows && y + dy < DISPLAY_HEIGHT; dy++) {
-        sprite_row = MEM[CPU->I + dy];
+        uint8_t sprite_row = MEM[CPU->I + dy];
         for (uint8_t dx = 0; dx < 8 && x + dx < DISPLAY_WIDTH; dx++) {
-            pixel_bit = sprite_row >> (7 - dx) & 0x01;
+            uint8_t pixel_bit = sprite_row >> (7 - dx) & 0x01;
             CPU->VAR[0X0F] |= (display_get(x + dx, y + dy) & pixel_bit) > 0;
             display_xor(x + dx, y + dy, pixel_bit);
         }
@@ -161,10 +164,43 @@ loop()
     decode_instruction(instruction);
 }
 
+bool
+load_program(char *filename)
+{
+    FILE *f = fopen(filename, "rb");
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+
+    uint16_t prog_ram = MEM_SIZE - PROG_MEMLOC;
+    if (size > prog_ram) {
+        printf("Program of %ld bytes greater than available RAM of %d bytes\n", size, prog_ram);
+        return 0;
+    }
+
+    rewind(f);
+    fread(MEM + PROG_MEMLOC, 1, size, f);
+    fclose(f);
+
+    printf("Loaded program %s of %ld bytes\n", filename, size);
+    return 1;
+}
+
 int
 main(int argc, char *argv[])
 {
-    boot_sequence();
+    if (argc < 2) {
+        printf("Usage: %s <program>\n", argv[0]);
+        return 1;
+    }
+    if (!boot_sequence()) {
+        printf("Error initializing memory during boot sequence\n");
+        return 1;
+    }
+    if (!load_program(argv[1])) {
+        printf("Error loading program %s\n", argv[1]);
+        return 1;
+    }
 
-
+    while (true)
+        loop();
 }

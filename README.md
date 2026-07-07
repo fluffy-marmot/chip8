@@ -10,7 +10,7 @@ A CHIP-8 interpreter, based on [the guide by tobiasvl](https://tobiasvl.github.i
 representation of the chip's display memory. The functions declared at the bottom of the header file are what
 any implementation can use to interact with the state of the "hardware."
 
-There are a few test programs (ROMs) ending with the .ch8 extension
+There are a few test programs (ROMs) ending with the .ch8 extension (hopefully their copyright is ok...).
 
 ## Compiling and Using
 

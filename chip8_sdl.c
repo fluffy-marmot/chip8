@@ -135,6 +135,7 @@ main(int argc, char *args[])
             }
             if (now - last_instruction >= MS_PER_INSTRUCTION) {
                 do_instruction_cycle();
+                // TODO - maybe would be better to draw at 60Hz instead of every instruction...
                 window_draw();
                 last_instruction = now;
             }

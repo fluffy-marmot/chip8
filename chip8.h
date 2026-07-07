@@ -10,6 +10,7 @@ extern bool USE_COSMAC_VIP_SHIFT;
 extern bool USE_COSMAC_VIP_JUMP_WITH_OFFSET;
 extern bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW;
 extern bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP;
+extern int  INSTRUCTION_CYCLES_PER_SEC;
 
 /*
 Specifications: 
@@ -42,5 +43,7 @@ uint8_t display_get(uint8_t x, uint8_t y);
 bool do_instruction_cycle(void);
 bool boot_sequence(int argc, char *argv[]);
 void keypad_set(uint8_t key, bool state);
+void timer_cycle(void);
+uint8_t get_sound_timer(void);
 
 #endif

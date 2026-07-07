@@ -34,10 +34,11 @@ uint8_t *DISPLAY;
 uint8_t *KEYPAD;
 uint8_t *KEYPAD_PREV;
 
-bool USE_COSMAC_VIP_SHIFT = false;
-bool USE_COSMAC_VIP_JUMP_WITH_OFFSET = true;
+bool USE_COSMAC_VIP_SHIFT                 = false;
+bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
 bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = false;
-bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP = false;
+bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = false;
+int  INSTRUCTION_CYCLES_PER_SEC           = 600;       
 
 void
 load_font_sprites()
@@ -65,6 +66,19 @@ init_memory()
     load_font_sprites();
     srand(time(NULL));
     return 1;
+}
+
+void
+timer_cycle()
+{
+    if (CPU->delay_timer > 0) CPU->delay_timer--;
+    if (CPU->sound_timer > 0) CPU->sound_timer--;
+}
+
+uint8_t
+get_sound_timer()
+{
+    return CPU->sound_timer;
 }
 
 void
@@ -126,8 +140,6 @@ fetch_instruction()
 bool
 decode_instruction(uint16_t instruction)
 {
-    debug_instruction(instruction);
-
     // breakup the two instruction bytes into four "nibbles" (four half-bytes)
     uint8_t op = (uint8_t) ((instruction & 0xF000) >> 12);  // first nibble - broad instruction category
     uint8_t x  = (uint8_t) ((instruction & 0x0F00) >>  8);  // mostly used to refer to a register

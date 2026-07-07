@@ -106,6 +106,13 @@ main(int argc, char *args[])
     } else {
         bool quit = false;
         SDL_Event e;
+        const double MS_PER_INSTRUCTION = 1000.0 / INSTRUCTION_CYCLES_PER_SEC;
+        // timer decrement is supposed to be called at 60Hz, regardless of instruction speed
+        const double MS_PER_TIMER_CYCLE = 1000.0 / 60.0;
+
+        uint64_t last_timer = SDL_GetTicks64();
+        uint64_t last_instruction = SDL_GetTicks64();
+        uint64_t now;
 
         while (!quit) {
             while (SDL_PollEvent(&e) != 0) {
@@ -120,11 +127,19 @@ main(int argc, char *args[])
                     }
                 }
             }
+            
+            now = SDL_GetTicks64();
+            if (now - last_timer >= MS_PER_TIMER_CYCLE) {
+                timer_cycle();
+                last_timer = now;
+            }
+            if (now - last_instruction >= MS_PER_INSTRUCTION) {
+                do_instruction_cycle();
+                window_draw();
+                last_instruction = now;
+            }
 
-            do_instruction_cycle();
-            window_draw();
-
-            SDL_Delay(1); // 1 ms
+            SDL_Delay(1); // don't burn out the CPU... :)
         }  
     }
 

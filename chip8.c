@@ -2,10 +2,12 @@
 
 // fopen, fseek, ftell, rewind, fread, fclose, SEEK_END
 #include <stdio.h>
-// malloc, calloc
+// malloc, calloc, srand, rand
 #include <stdlib.h>
 // memcpy, memset
-#include <string.h> 
+#include <string.h>
+// time
+#include <time.h>
 
 uint8_t FONT_SPRITES[] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -29,6 +31,13 @@ uint8_t FONT_SPRITES[] = {
 cpu_t *CPU;
 uint8_t *MEM;
 uint8_t *DISPLAY;
+uint8_t *KEYPAD;
+uint8_t *KEYPAD_PREV;
+
+bool USE_COSMAC_VIP_SHIFT = true;
+bool USE_COSMAC_VIP_JUMP_WITH_OFFSET = true;
+bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = false;
+bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP = false;
 
 void
 load_font_sprites()
@@ -46,13 +55,22 @@ init_memory()
     CPU = calloc(1, sizeof(cpu_t));
     MEM = calloc(MEM_SIZE, sizeof(uint8_t));
     DISPLAY = calloc(DISPLAY_WIDTH * DISPLAY_HEIGHT, sizeof(uint8_t));
-    if (!CPU || !MEM || !DISPLAY) {
+    KEYPAD = calloc(16, sizeof(uint8_t));
+    KEYPAD_PREV = calloc(16, sizeof(uint8_t));
+    if (!CPU || !MEM || !DISPLAY || !KEYPAD || !KEYPAD_PREV) {
         return 0;
     }
 
     CPU->PC = PROG_MEMLOC;
     load_font_sprites();
+    srand(time(NULL));
     return 1;
+}
+
+void
+keypad_set(uint8_t key, bool state)
+{
+    KEYPAD[key & 0x0F] = state;
 }
 
 void
@@ -107,6 +125,8 @@ decode_instruction(uint16_t instruction)
     uint8_t y  = (uint8_t) ((instruction & 0x00F0) >>  4);  // mostly used to refer to a register
     uint8_t n  = (uint8_t) ((instruction & 0x000F)      );  // a 4-bit number
 
+    uint8_t nn = (uint8_t) ((instruction & 0x00FF)      );  // the whole second byte
+
     switch (op) {
     case 0x00: 
         if (instruction == 0x00E0) {            // 00E0 clear display instruction
@@ -135,8 +155,8 @@ decode_instruction(uint16_t instruction)
             CPU->PC += 2;
         }
         break;
-        case 0x04: // 4XNN - skip one instruction if VX doesn't equal NN
-        if (CPU->VAR[x] != (uint8_t) (instruction & 0x00FF)) {
+    case 0x04: // 4XNN - skip one instruction if VX doesn't equal NN
+        if (CPU->VAR[x] != nn) {
             CPU->PC += 2;
         }
         break;
@@ -146,12 +166,13 @@ decode_instruction(uint16_t instruction)
         }
         break;
     case 0x06: // 6XNN - set register VX to NN
-        CPU->VAR[x] =  (uint8_t) (instruction & 0x00FF);
+        CPU->VAR[x] = nn;
         break;
     case 0x07: // 7XNN - add value to register VX
-        CPU->VAR[x] += (uint8_t) (instruction & 0x00FF);
+        CPU->VAR[x] += nn;
         break;
-    case 0x08:
+    case 0x08: // 8XY# - various arithmetic and bitwise operations
+
         switch (n) {
         case 0x00: // 8XY0 - set VX to value of VY
             CPU->VAR[x] = CPU->VAR[y];
@@ -173,9 +194,23 @@ decode_instruction(uint16_t instruction)
             CPU->VAR[0X0F] = (CPU->VAR[x] > CPU->VAR[y]);
             CPU->VAR[x] -= CPU->VAR[y];
             break;
+        case 0x06: // 8XY6 - right bit shift, two implementation standards exist
+            if (USE_COSMAC_VIP_SHIFT) {
+                CPU->VAR[x] = CPU->VAR[y]; // copy value in VY to VX if using this setting
+            }
+            CPU->VAR[0x0F] = CPU->VAR[x] & 0x01; // set VF register to bit shifted out
+            CPU->VAR[x] >>= 1;
+            break;
         case 0x07: // 8XY7 - VX = VY - VX, and set VF to 1 if VY > VX (confusingly)
             CPU->VAR[0X0F] = (CPU->VAR[y] > CPU->VAR[x]);
             CPU->VAR[x] = CPU->VAR[y] - CPU->VAR[x];
+            break;
+        case 0x08: // 8XY8 - left bit shift, two implementation standards exist
+            if (USE_COSMAC_VIP_SHIFT) {
+                CPU->VAR[x] = CPU->VAR[y]; // copy value in VY to VX if using this setting
+            }
+            CPU->VAR[0x0F] = CPU->VAR[x] & 0x80; // set VF register to bit shifted out
+            CPU->VAR[x] <<= 1;
             break;
         }
 
@@ -188,8 +223,93 @@ decode_instruction(uint16_t instruction)
     case 0x0A: // ANNN - set index register
         CPU->I = instruction & 0x0FFF;
         break;
+    case 0x0B: // BNNN - jump with offset, a second (buggy?) implementation standard exists
+        if (USE_COSMAC_VIP_JUMP_WITH_OFFSET) {
+            CPU->PC = instruction & 0x0FFF + CPU->VAR[0x00]; // add V0 register to NNN
+        } else {
+            CPU->PC = instruction & 0x0FFF + CPU->VAR[x];    // add VX register to NNN
+        }
+        break;
+    case 0x0C: // CXNN - generate random number, AND it with NN and put result in VX
+        CPU->VAR[x] = (uint8_t) (rand() % 256) & nn;
+        break;
     case 0x0D: // DXYN - draw instruction ?
         draw_sprite(CPU->VAR[x], CPU->VAR[y], n);
+        break;
+    case 0x0E: // Skip if key pressed (or not pressed) instructions
+        if (nn == 0x9E) { // EX9E - skip instruction if key VX is pressed
+            if (KEYPAD[CPU->VAR[x] & 0x0F]) {
+                CPU->PC += 2;
+            }
+        } else if (nn == 0xA1) { // EXA1 - skip instruction if key VX is -NOT- pressed
+            if (!(KEYPAD[CPU->VAR[x] & 0x0F])) {
+                CPU->PC += 2;
+            }
+        }
+        break;
+    case 0x0F:
+        switch (nn) {
+        case 0x07: // FX07 - sets VX to current value of delay timer
+            CPU->VAR[x] = CPU->delay_timer;
+            break;
+        case 0x15: // FX15 - sets delay timer to current value of VX
+            CPU->delay_timer = CPU->VAR[x];
+            break;
+        case 0x18: // FX18 - sets sound timer to current value of VX
+            CPU->sound_timer = CPU->VAR[x];
+            break;
+        case 0x1E: // FX1E - add value of VX to index register
+            if (!USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW) {
+                if (CPU->I + CPU->VAR[x] > 0x0FFF) { // check for overflow over addressable 12 bits
+                    CPU->VAR[0x0F] = 1; // in later implementations, set VF register to 1 on overflow
+                }
+            }
+            CPU->I = (CPU->I + CPU->VAR[x]) & 0x0FFF;
+            break;
+        case 0x0A: // FX0A - block execution until key input (my decrementing instruction pointer)
+            bool key_press = false;
+            for (uint8_t key = 0x00; key <= 0x0F; key++) {
+                /* 
+                following the convention: "On the original COSMAC VIP, the key was only registered 
+                when it was pressed and then released." Therefore checking key pressed last cycle but not now
+                */
+                if (KEYPAD_PREV[key] && !KEYPAD[key]) {
+                    key_press = true;
+                    CPU->VAR[x] = key;
+                    break;
+                }
+            }
+            if (!key_press) {
+                CPU->PC -= 2;
+            }
+            break;
+        case 0x29: // FX29 - set index register to "font address" of hex character VX's value (0 <= VX <= 0xF)
+            CPU->I = FONT_MEMLOC + CPU->VAR[x] & 0x0F;
+            break;
+        case 0x33: // FX33 - binary-coded decimal conversion
+            /* takes the number in VX (which is one byte, so it can be any number from 0 to 255) and converts it
+            to three decimal digits, storing these digits in memory at the address in the index register I*/
+            MEM[CPU->I]     =  CPU->VAR[x] / 100;
+            MEM[CPU->I + 1] = (CPU->VAR[x] % 100) / 10;
+            MEM[CPU->I + 2] =  CPU->VAR[x] % 10;
+            break;
+        case 0x55: // FX55 - store VX number of registers to memory
+            for (uint8_t i = 0; i <= x; i++) {
+                MEM[CPU->I + i] = CPU->VAR[i];
+            }
+            if (USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP) {
+                CPU->I += x + 1; // implementation option, I is incremented on each byte copied
+            }
+            break;
+        case 0x65: // FX65 - load memory into VX number of registers
+            for (uint8_t i = 0; i <= x; i++) {
+                CPU->VAR[i] = MEM[CPU->I + i];
+            }
+            if (USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP) {
+                CPU->I += x + 1; // implementation option, I is incremented on each byte copied
+            }
+            break;
+        }
         break;
     }
 
@@ -200,7 +320,8 @@ bool
 do_instruction_cycle()
 {
     uint16_t instruction = fetch_instruction();
-    return decode_instruction(instruction);
+    bool result = decode_instruction(instruction);
+    memcpy(KEYPAD_PREV, KEYPAD, 16); // copy current keypad state to KEYPAD_PREV 
 }
 
 bool

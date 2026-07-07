@@ -5,6 +5,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Configurable
+extern bool USE_COSMAC_VIP_SHIFT;
+extern bool USE_COSMAC_VIP_JUMP_WITH_OFFSET;
+extern bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW;
+extern bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP;
+
 /*
 Specifications: 
 4096 bytes RAM (12 bit memory addresses)

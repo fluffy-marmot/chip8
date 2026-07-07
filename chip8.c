@@ -34,7 +34,7 @@ uint8_t *DISPLAY;
 uint8_t *KEYPAD;
 uint8_t *KEYPAD_PREV;
 
-bool USE_COSMAC_VIP_SHIFT = true;
+bool USE_COSMAC_VIP_SHIFT = false;
 bool USE_COSMAC_VIP_JUMP_WITH_OFFSET = true;
 bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = false;
 bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP = false;
@@ -109,6 +109,12 @@ draw_sprite(uint8_t x, uint8_t y, uint8_t number_rows)
     }
 }
 
+void
+debug_instruction(uint16_t instruction)
+{
+    printf("Unknown instruction %04X. Current PC: %04X\n", instruction, CPU->PC);
+}
+
 uint16_t
 fetch_instruction()
 {
@@ -120,6 +126,8 @@ fetch_instruction()
 bool
 decode_instruction(uint16_t instruction)
 {
+    debug_instruction(instruction);
+
     // breakup the two instruction bytes into four "nibbles" (four half-bytes)
     uint8_t op = (uint8_t) ((instruction & 0xF000) >> 12);  // first nibble - broad instruction category
     uint8_t x  = (uint8_t) ((instruction & 0x0F00) >>  8);  // mostly used to refer to a register
@@ -127,6 +135,7 @@ decode_instruction(uint16_t instruction)
     uint8_t n  = (uint8_t) ((instruction & 0x000F)      );  // a 4-bit number
 
     uint8_t nn = (uint8_t) ((instruction & 0x00FF)      );  // the whole second byte
+    uint8_t flag;
 
     switch (op) {
     case 0x00: 
@@ -138,6 +147,8 @@ decode_instruction(uint16_t instruction)
                 return 0;
             }
             CPU->PC = CPU->stack[--CPU->stack_len];
+        } else {
+            debug_instruction(instruction);
         }
         break;
     case 0x01: // 1NNN jump instruction, using other 12 bits as memory address
@@ -188,30 +199,38 @@ decode_instruction(uint16_t instruction)
             CPU->VAR[x] ^= CPU->VAR[y];
             break;
         case 0x04: // 8XY4 - VX = VX + VY, and set VF to 1 if VX + VY > 255 (overflows 8 bits)
-            CPU->VAR[0X0F] = ((uint16_t) CPU->VAR[x] + (uint16_t) CPU->VAR[y] > 0xFF);
+            flag = ((uint16_t) CPU->VAR[x] + (uint16_t) CPU->VAR[y] > 0xFF);
             CPU->VAR[x] += CPU->VAR[y];
+            CPU->VAR[0X0F] = flag;
             break;
         case 0x05: // 8XY5 - VX = VX - VY, and set VF to 1 if VX > VY (confusingly)
-            CPU->VAR[0X0F] = (CPU->VAR[x] > CPU->VAR[y]);
+            flag = (CPU->VAR[x] >= CPU->VAR[y]);
             CPU->VAR[x] -= CPU->VAR[y];
+            CPU->VAR[0X0F] = flag;
             break;
         case 0x06: // 8XY6 - right bit shift, two implementation standards exist
             if (USE_COSMAC_VIP_SHIFT) {
                 CPU->VAR[x] = CPU->VAR[y]; // copy value in VY to VX if using this setting
             }
-            CPU->VAR[0x0F] = CPU->VAR[x] & 0x01; // set VF register to bit shifted out
+            flag = CPU->VAR[x] & 0x01; // set VF register to bit shifted out
             CPU->VAR[x] >>= 1;
+            CPU->VAR[0X0F] = flag;
             break;
         case 0x07: // 8XY7 - VX = VY - VX, and set VF to 1 if VY > VX (confusingly)
-            CPU->VAR[0X0F] = (CPU->VAR[y] > CPU->VAR[x]);
+            flag = (CPU->VAR[y] >= CPU->VAR[x]);
             CPU->VAR[x] = CPU->VAR[y] - CPU->VAR[x];
+            CPU->VAR[0X0F] = flag;
             break;
-        case 0x08: // 8XY8 - left bit shift, two implementation standards exist
+        case 0x0E: // 8XYE - left bit shift, two implementation standards exist
             if (USE_COSMAC_VIP_SHIFT) {
                 CPU->VAR[x] = CPU->VAR[y]; // copy value in VY to VX if using this setting
             }
-            CPU->VAR[0x0F] = CPU->VAR[x] & 0x80; // set VF register to bit shifted out
+            flag = (CPU->VAR[x] & 0x80) >> 7; // set VF register to bit shifted out
             CPU->VAR[x] <<= 1;
+            CPU->VAR[0X0F] = flag;
+            break;
+        default:
+            debug_instruction(instruction);
             break;
         }
 
@@ -226,9 +245,9 @@ decode_instruction(uint16_t instruction)
         break;
     case 0x0B: // BNNN - jump with offset, a second (buggy?) implementation standard exists
         if (USE_COSMAC_VIP_JUMP_WITH_OFFSET) {
-            CPU->PC = instruction & 0x0FFF + CPU->VAR[0x00]; // add V0 register to NNN
+            CPU->PC = (instruction & 0x0FFF) + CPU->VAR[0x00]; // add V0 register to NNN
         } else {
-            CPU->PC = instruction & 0x0FFF + CPU->VAR[x];    // add VX register to NNN
+            CPU->PC = (instruction & 0x0FFF) + CPU->VAR[x];    // add VX register to NNN
         }
         break;
     case 0x0C: // CXNN - generate random number, AND it with NN and put result in VX
@@ -246,6 +265,8 @@ decode_instruction(uint16_t instruction)
             if (!(KEYPAD[CPU->VAR[x] & 0x0F])) {
                 CPU->PC += 2;
             }
+        } else {
+            debug_instruction(instruction);
         }
         break;
     case 0x0F:
@@ -260,12 +281,12 @@ decode_instruction(uint16_t instruction)
             CPU->sound_timer = CPU->VAR[x];
             break;
         case 0x1E: // FX1E - add value of VX to index register
+            CPU->I = (CPU->I + CPU->VAR[x]) & 0x0FFF;
             if (!USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW) {
                 if (CPU->I + CPU->VAR[x] > 0x0FFF) { // check for overflow over addressable 12 bits
                     CPU->VAR[0x0F] = 1; // in later implementations, set VF register to 1 on overflow
                 }
             }
-            CPU->I = (CPU->I + CPU->VAR[x]) & 0x0FFF;
             break;
         case 0x0A: // FX0A - block execution until key input (my decrementing instruction pointer)
             bool key_press = false;
@@ -285,7 +306,7 @@ decode_instruction(uint16_t instruction)
             }
             break;
         case 0x29: // FX29 - set index register to "font address" of hex character VX's value (0 <= VX <= 0xF)
-            CPU->I = FONT_MEMLOC + CPU->VAR[x] & 0x0F;
+            CPU->I = FONT_MEMLOC + ((CPU->VAR[x] & 0x0F) * 5);
             break;
         case 0x33: // FX33 - binary-coded decimal conversion
             /* takes the number in VX (which is one byte, so it can be any number from 0 to 255) and converts it
@@ -310,6 +331,9 @@ decode_instruction(uint16_t instruction)
                 CPU->I += x + 1; // implementation option, I is incremented on each byte copied
             }
             break;
+        default:
+            debug_instruction(instruction);
+            break;
         }
         break;
     }
@@ -322,7 +346,8 @@ do_instruction_cycle()
 {
     uint16_t instruction = fetch_instruction();
     bool result = decode_instruction(instruction);
-    memcpy(KEYPAD_PREV, KEYPAD, 16); // copy current keypad state to KEYPAD_PREV 
+    memcpy(KEYPAD_PREV, KEYPAD, 16); // copy current keypad state to KEYPAD_PREV
+    return result;
 }
 
 bool

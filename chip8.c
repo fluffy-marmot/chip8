@@ -281,11 +281,10 @@ decode_instruction(uint16_t instruction)
             CPU->sound_timer = CPU->VAR[x];
             break;
         case 0x1E: // FX1E - add value of VX to index register
+            flag = CPU->I + CPU->VAR[x] > 0x0FFF; // check for overflow above addressable 12 bits
             CPU->I = (CPU->I + CPU->VAR[x]) & 0x0FFF;
             if (!USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW) {
-                if (CPU->I + CPU->VAR[x] > 0x0FFF) { // check for overflow over addressable 12 bits
-                    CPU->VAR[0x0F] = 1; // in later implementations, set VF register to 1 on overflow
-                }
+                CPU->VAR[0x0F] = flag; // only set flag for certain implementation
             }
             break;
         case 0x0A: // FX0A - block execution until key input (my decrementing instruction pointer)

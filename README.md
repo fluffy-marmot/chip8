@@ -26,3 +26,8 @@ Run a program with (for example):
 ```bash
 ./chip8 programs/space.ch8
 ```
+
+## Keypad
+
+By the way, CHIP-8 systems used a 16 key keypad labeled 0-F (hex digits). The SDL implementation uses the 4x4
+grid of keys on the left of the keyboard: 1234 QWER ASDF ZXCV to interact with programs.

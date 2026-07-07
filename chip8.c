@@ -71,6 +71,7 @@ void
 keypad_set(uint8_t key, bool state)
 {
     KEYPAD[key & 0x0F] = state;
+    printf("Key event, set %d to %d\n", key, state);
 }
 
 void

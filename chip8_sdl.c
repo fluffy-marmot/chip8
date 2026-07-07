@@ -14,6 +14,26 @@
 #define CLR_PIXEL_ON    SDL_MapRGB(screenSurface->format, 0xD0, 0xD0, 0xF0)
 #define CLR_PIXEL_OFF   SDL_MapRGB(screenSurface->format, 0x10, 0x10, 0x10)
 
+// kind of using the common convention 4x4 keypad on the left side of the keyboard
+SDL_Scancode KEYMAP[16] = {
+    SDL_SCANCODE_X,  // 0
+    SDL_SCANCODE_1,  // 1
+    SDL_SCANCODE_2,  // 2
+    SDL_SCANCODE_3,  // 3
+    SDL_SCANCODE_Q,  // 4
+    SDL_SCANCODE_W,  // 5
+    SDL_SCANCODE_E,  // 6
+    SDL_SCANCODE_A,  // 7
+    SDL_SCANCODE_S,  // 8
+    SDL_SCANCODE_D,  // 9
+    SDL_SCANCODE_Z,  // A
+    SDL_SCANCODE_C,  // B
+    SDL_SCANCODE_4,  // C
+    SDL_SCANCODE_R,  // D
+    SDL_SCANCODE_F,  // E
+    SDL_SCANCODE_V,  // F
+};
+
 SDL_Window *window;
 SDL_Surface *screenSurface;
 
@@ -84,13 +104,28 @@ main(int argc, char *args[])
     } else if (!window_init()) {
         printf("Failed to initialize SDL window\n");
     } else {
-        while (true) {
+        bool quit = false;
+        SDL_Event e;
+
+        while (!quit) {
+            while (SDL_PollEvent(&e) != 0) {
+                if (e.type == SDL_QUIT) {
+                    quit = true;
+                } else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
+                    for (uint8_t key = 0; key <= 0x0F; key++) {
+                        if (e.key.keysym.scancode == KEYMAP[key]) {
+                            keypad_set(key, e.type == SDL_KEYDOWN);
+                            break;
+                        }
+                    }
+                }
+            }
+
             do_instruction_cycle();
             window_draw();
-        }
 
-        //Hacky way to get window to stay up
-        SDL_Event e; bool quit = false; while( quit == false ){ while( SDL_PollEvent( &e ) ){ if( e.type == SDL_QUIT ) quit = true; } }
+            SDL_Delay(1); // 1 ms
+        }  
     }
 
     window_close();

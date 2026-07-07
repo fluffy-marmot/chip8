@@ -1,7 +1,5 @@
-// bool
-#include <stdbool.h>
-// uint_8t, uint_16t
-#include <stdint.h>
+#include "chip8.h"
+
 // fopen, fseek, ftell, rewind, fread, fclose, SEEK_END
 #include <stdio.h>
 // malloc, calloc
@@ -9,22 +7,6 @@
 // memcpy, memset
 #include <string.h> 
 
-/*
-Specifications: 
-4096 bytes RAM (12 bit memory addresses)
-64x32 monochrome display
-
-The first 512 bytes of memory were used for interpreter and not touched by
-actual programs, so they can be used to store some data on how to draw fonts,
-for example. 
-*/
-
-#define MEM_SIZE        (4 * 1024)
-#define DISPLAY_WIDTH   64
-#define DISPLAY_HEIGHT  32
-#define STACK_SIZE      64
-#define FONT_MEMLOC     0x050
-#define PROG_MEMLOC     0x200
 
 uint8_t FONT_SPRITES[] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -45,16 +27,6 @@ uint8_t FONT_SPRITES[] = {
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-typedef struct {
-    uint16_t PC;                    // Program counter (aka instruction pointer for program)
-    uint16_t I;                     // Index register, used to point to memory locations
-    uint16_t stack[STACK_SIZE];     // Stack of memory locations, used to call & return from subroutines 
-    uint8_t  stack_ptr;             // Current index of stack
-    uint8_t  VAR[16];               // 16 8-bit CPU variable registers, labeled V0 - VF
-    uint8_t  delay_timer;           // 8-bit delay timer, decremented at 60Hz until it reaches 0
-    uint8_t  sound_timer;           // 8-but sound timer, same as delay timer, produces beep when nonzero
-} cpu_t;
-
 cpu_t *CPU;
 uint8_t *MEM;
 uint8_t *DISPLAY;
@@ -66,7 +38,7 @@ load_font_sprites()
 }
 
 bool
-boot_sequence()
+init_memory()
 {
     free(CPU);
     free(MEM);
@@ -75,7 +47,9 @@ boot_sequence()
     CPU = calloc(1, sizeof(cpu_t));
     MEM = calloc(MEM_SIZE, sizeof(uint8_t));
     DISPLAY = calloc(DISPLAY_WIDTH * DISPLAY_HEIGHT, sizeof(uint8_t));
-    if (!CPU || !MEM || !DISPLAY) return 0;
+    if (!CPU || !MEM || !DISPLAY) {
+        return 0;
+    }
 
     CPU->PC = PROG_MEMLOC;
     load_font_sprites();
@@ -136,8 +110,9 @@ decode_instruction(uint16_t instruction)
 
     switch (op) {
         case 0x00: // clear display, among other things
-            if (instruction == 0x00E0)
+            if (instruction == 0x00E0) {
                 display_clear();
+            }
             break;
         case 0x01: // jump instruction, using other 12 bits as memory address
             CPU->PC = instruction & 0x0FFF;
@@ -158,7 +133,7 @@ decode_instruction(uint16_t instruction)
 }
 
 void
-loop()
+do_instruction_cycle()
 {
     uint16_t instruction = fetch_instruction();
     decode_instruction(instruction);
@@ -168,6 +143,11 @@ bool
 load_program(char *filename)
 {
     FILE *f = fopen(filename, "rb");
+    if (!f) {
+        printf("Could not open %s", filename);
+        return 0;
+    }
+
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
 
@@ -185,22 +165,21 @@ load_program(char *filename)
     return 1;
 }
 
-int
-main(int argc, char *argv[])
+bool
+boot_sequence(int argc, char *argv[])
 {
     if (argc < 2) {
         printf("Usage: %s <program>\n", argv[0]);
-        return 1;
+        return 0;
     }
-    if (!boot_sequence()) {
+    if (!init_memory()) {
         printf("Error initializing memory during boot sequence\n");
-        return 1;
+        return 0;
     }
     if (!load_program(argv[1])) {
         printf("Error loading program %s\n", argv[1]);
-        return 1;
+        return 0;
     }
 
-    while (true)
-        loop();
+    return 1;
 }

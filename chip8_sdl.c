@@ -4,10 +4,11 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
-#define MARGIN      5
+#define MARGIN      10
 #define BORDER      1
-#define PIXEL_SIZE  10
+#define PIXEL_SIZE  25
 
 #define CLR_MARGIN      SDL_MapRGB(screenSurface->format, 0x40, 0x40, 0x40)
 #define CLR_BORDER      SDL_MapRGB(screenSurface->format, 0x90, 0xC0, 0xC0)
@@ -66,20 +67,24 @@ window_draw()
 
 
 bool
-window_init()
+window_init(char *rom_name)
 {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 0;
     } else {
+        char *window_title = malloc(19 + strlen(rom_name));
+        strcpy(window_title, "CHIP-8 Emulator - ");
+        strcat(window_title, rom_name);
         window = SDL_CreateWindow(
-            "CHIP-8 Demo",
+            window_title,
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
             2 * MARGIN + PIXEL_SIZE * DISPLAY_WIDTH + BORDER * (DISPLAY_WIDTH + 1),
             2 * MARGIN + PIXEL_SIZE * DISPLAY_HEIGHT + BORDER * (DISPLAY_HEIGHT + 1),
             SDL_WINDOW_SHOWN
         );
+        free(window_title);
         if (window == NULL) {
             printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
             return 0;
@@ -103,7 +108,7 @@ main(int argc, char *args[])
 {
     if (!boot_sequence(argc, args)) {
         printf("Error in CHIP-8 boot sequence\n");
-    } else if (!window_init()) {
+    } else if (!window_init(args[1])) {
         printf("Failed to initialize SDL window\n");
     } else {
         bool quit = false;

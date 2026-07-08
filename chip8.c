@@ -9,6 +9,18 @@
 // time
 #include <time.h>
 
+// if true, 8XY6, 8XYE copy VX to VY before shift operation
+bool USE_COSMAC_VIP_SHIFT                 = true;
+// if true, BNNN jump with offset instruction offsets by V0 instead of VX 
+bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
+// if true, FX1E add VX to index instruction WILL NOT set VF to 1 on overflow (the original behavior)
+bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = true;
+// if true, FX55, Fx65 operations increment the index register
+bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
+// if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
+bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = true;
+int  INSTRUCTION_CYCLES_PER_FRAME         = 30;
+
 uint8_t FONT_SPRITES[] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -33,19 +45,6 @@ uint8_t *MEM;
 uint8_t *DISPLAY;
 uint8_t *KEYPAD;
 uint8_t *KEYPAD_PREV;
-
-// if true, 8XY6, 8XYE copy VX to VY before shift operation
-bool USE_COSMAC_VIP_SHIFT                 = true;
-// if true, BNNN jump with offset instruction offsets by V0 instead of VX 
-bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
-// if true, FX1E add VX to index instruction WILL NOT set VF to 1 on overflow (the original behavior)
-bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = true;
-// if true, FX55, Fx65 operations increment the index register
-bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
-// if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
-bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR    = true;
-
-int  INSTRUCTION_CYCLES_PER_FRAME         = 30;
 
 void
 load_font_sprites()

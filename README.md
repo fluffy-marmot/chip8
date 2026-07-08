@@ -13,6 +13,9 @@ any implementation can use to interact with the state of the "hardware."
 There are some test programs in the tests/ directory obtained from [Timendus' CHIP-8 test
 suite](https://github.com/Timendus/chip8-test-suite) that are helpful in making sure everything is behaving.
 
+The space.ch8 game requires changing `USE_COSMAC_VIP_SHIFT = false` from the default settings in chip8.c even
+though that's not the standard old school CHIP-8 implementation.
+
 ## Compiling and Using
 
 SDL is needed: 

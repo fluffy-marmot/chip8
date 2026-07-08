@@ -1,2 +1,8 @@
 chip8
+chip8.so
+
+.venv/
+__pycache__/
+*.pyc
+
 test/

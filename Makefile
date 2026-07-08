@@ -1,8 +1,12 @@
 CC = gcc
-LDFLAGS = -lSDL2 -lm
+SDL_FLAGS = -lSDL2 -lm
+PYGAME_FLAGS = -shared -fPIC
 
 chip8: chip8.c chip8_sdl.c chip8.h
-	$(CC) chip8.c chip8_sdl.c $(LDFLAGS) -o chip8
+	$(CC) chip8.c chip8_sdl.c $(SDL_FLAGS) -o chip8
+
+so: chip8.c
+	$(CC) chip8.c $(PYGAME_FLAGS) -o chip8.so
 
 clean:
 	rm -f chip8

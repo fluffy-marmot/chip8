@@ -42,7 +42,7 @@ typedef struct {
 
 uint8_t display_get(uint8_t x, uint8_t y);
 bool do_instruction_cycle(void);
-bool boot_sequence(int argc, char *argv[]);
+bool load_program(char *filename);
 void keypad_set(uint8_t key, bool state);
 void timer_cycle(void);
 uint8_t get_sound_timer(void);

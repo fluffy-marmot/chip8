@@ -155,7 +155,11 @@ bool audio_init()
 int
 main(int argc, char *args[])
 {
-    if (!boot_sequence(argc, args)) {
+    if (argc < 2) {
+        printf("Usage: %s <program>\n", args[0]);
+        return 0;
+    }
+    if (!load_program(args[1])) {
         printf("Error in CHIP-8 boot sequence\n");
     } else if (!window_init(args[1])) {
         printf("Failed to initialize SDL window\n");

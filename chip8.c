@@ -378,7 +378,11 @@ do_instruction_cycle()
 
 bool
 load_program(char *filename)
-{
+{   
+    if (!init_memory()) {
+        printf("Error initializing memory during boot sequence\n");
+        return 0;
+    }
     FILE *f = fopen(filename, "rb");
     if (!f) {
         printf("Could not open %s", filename);
@@ -399,24 +403,5 @@ load_program(char *filename)
     fclose(f);
 
     printf("Loaded program %s of %ld bytes\n", filename, size);
-    return 1;
-}
-
-bool
-boot_sequence(int argc, char *argv[])
-{
-    if (argc < 2) {
-        printf("Usage: %s <program>\n", argv[0]);
-        return 0;
-    }
-    if (!init_memory()) {
-        printf("Error initializing memory during boot sequence\n");
-        return 0;
-    }
-    if (!load_program(argv[1])) {
-        printf("Error loading program %s\n", argv[1]);
-        return 0;
-    }
-
     return 1;
 }

@@ -14,6 +14,8 @@
 #define CLR_PIXEL_ON    SDL_MapRGB(screenSurface->format, 0xD0, 0xD0, 0xF0)
 #define CLR_PIXEL_OFF   SDL_MapRGB(screenSurface->format, 0x10, 0x10, 0x10)
 
+const int FRAMES_PER_SECOND = 60;
+
 // kind of using the common convention 4x4 keypad on the left side of the keyboard
 SDL_Scancode KEYMAP[16] = {
     SDL_SCANCODE_X,  // 0
@@ -106,40 +108,33 @@ main(int argc, char *args[])
     } else {
         bool quit = false;
         SDL_Event e;
-        const double MS_PER_INSTRUCTION = 1000.0 / INSTRUCTION_CYCLES_PER_SEC;
-        // timer decrement is supposed to be called at 60Hz, regardless of instruction speed
-        const double MS_PER_TIMER_CYCLE = 1000.0 / 60.0;
+        const double MS_PER_FRAME = 1000.0 / FRAMES_PER_SECOND;
 
-        uint64_t last_timer = SDL_GetTicks64();
-        uint64_t last_instruction = SDL_GetTicks64();
+        uint64_t last_frame = SDL_GetTicks64();
         uint64_t now;
 
         while (!quit) {
-            while (SDL_PollEvent(&e) != 0) {
-                if (e.type == SDL_QUIT) {
-                    quit = true;
-                } else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
-                    for (uint8_t key = 0; key <= 0x0F; key++) {
-                        if (e.key.keysym.scancode == KEYMAP[key]) {
-                            keypad_set(key, e.type == SDL_KEYDOWN);
-                            break;
+            now = SDL_GetTicks64();
+            if (now - last_frame >= MS_PER_FRAME) {
+                while (SDL_PollEvent(&e) != 0) {
+                    if (e.type == SDL_QUIT) {
+                        quit = true;
+                    } else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
+                        for (uint8_t key = 0; key <= 0x0F; key++) {
+                            if (e.key.keysym.scancode == KEYMAP[key]) {
+                                keypad_set(key, e.type == SDL_KEYDOWN);
+                                break;
+                            }
                         }
                     }
                 }
-            }
-            
-            now = SDL_GetTicks64();
-            if (now - last_timer >= MS_PER_TIMER_CYCLE) {
                 timer_cycle();
-                last_timer = now;
-            }
-            if (now - last_instruction >= MS_PER_INSTRUCTION) {
-                do_instruction_cycle();
-                // TODO - maybe would be better to draw at 60Hz instead of every instruction...
+                for (int cycle = 0; cycle < INSTRUCTION_CYCLES_PER_FRAME; cycle++) {
+                    do_instruction_cycle();
+                }
                 window_draw();
-                last_instruction = now;
+                last_frame = now;
             }
-
             SDL_Delay(1); // don't burn out the CPU... :)
         }  
     }

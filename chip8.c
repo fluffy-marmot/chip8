@@ -38,7 +38,7 @@ bool USE_COSMAC_VIP_SHIFT                 = false;
 bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
 bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = false;
 bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = false;
-int  INSTRUCTION_CYCLES_PER_SEC           = 600;       
+int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
 
 void
 load_font_sprites()

@@ -34,15 +34,18 @@ uint8_t *DISPLAY;
 uint8_t *KEYPAD;
 uint8_t *KEYPAD_PREV;
 
-bool USE_COSMAC_VIP_SHIFT                 = false;
+// if true, 8XY6, 8XYE copy VX to VY before shift operation
+bool USE_COSMAC_VIP_SHIFT                 = true;
+// if true, BNNN jump with offset instruction offsets by V0 instead of VX 
 bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
-bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = false;
-bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = false;
-
+// if true, FX1E add VX to index instruction WILL NOT set VF to 1 on overflow (the original behavior)
+bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = true;
+// if true, FX55, Fx65 operations increment the index register
+bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
 // if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
-bool USE_TIMENDEUS_VF_RESET_AND_OR_XOR    = true;
+bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR    = true;
 
-int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
+int  INSTRUCTION_CYCLES_PER_FRAME         = 30;
 
 void
 load_font_sprites()
@@ -207,19 +210,19 @@ decode_instruction(uint16_t instruction)
             break;
         case 0x01: // 8XY1 - set VX to VX OR VY
             CPU->VAR[x] |= CPU->VAR[y];
-            if (USE_TIMENDEUS_VF_RESET_AND_OR_XOR) {
+            if (USE_COSMAC_VIP_VF_RESET_AND_OR_XOR) {
                 CPU->VAR[0x0F] = 0;
             }
             break;
         case 0x02: // 8XY2 - set VX to VX AND VY
             CPU->VAR[x] &= CPU->VAR[y];
-            if (USE_TIMENDEUS_VF_RESET_AND_OR_XOR) {
+            if (USE_COSMAC_VIP_VF_RESET_AND_OR_XOR) {
                 CPU->VAR[0x0F] = 0;
             }
             break;
         case 0x03: // 8XY3 - set VX to VX XOR VY
             CPU->VAR[x] ^= CPU->VAR[y];
-            if (USE_TIMENDEUS_VF_RESET_AND_OR_XOR) {
+            if (USE_COSMAC_VIP_VF_RESET_AND_OR_XOR) {
                 CPU->VAR[0x0F] = 0;
             }
             break;

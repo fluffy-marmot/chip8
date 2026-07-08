@@ -38,6 +38,10 @@ bool USE_COSMAC_VIP_SHIFT                 = false;
 bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
 bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = false;
 bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = false;
+
+// if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
+bool USE_TIMENDEUS_VF_RESET_AND_OR_XOR    = true;
+
 int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
 
 void
@@ -203,12 +207,21 @@ decode_instruction(uint16_t instruction)
             break;
         case 0x01: // 8XY1 - set VX to VX OR VY
             CPU->VAR[x] |= CPU->VAR[y];
+            if (USE_TIMENDEUS_VF_RESET_AND_OR_XOR) {
+                CPU->VAR[0x0F] = 0;
+            }
             break;
         case 0x02: // 8XY2 - set VX to VX AND VY
             CPU->VAR[x] &= CPU->VAR[y];
+            if (USE_TIMENDEUS_VF_RESET_AND_OR_XOR) {
+                CPU->VAR[0x0F] = 0;
+            }
             break;
         case 0x03: // 8XY3 - set VX to VX XOR VY
             CPU->VAR[x] ^= CPU->VAR[y];
+            if (USE_TIMENDEUS_VF_RESET_AND_OR_XOR) {
+                CPU->VAR[0x0F] = 0;
+            }
             break;
         case 0x04: // 8XY4 - VX = VX + VY, and set VF to 1 if VX + VY > 255 (overflows 8 bits)
             flag = ((uint16_t) CPU->VAR[x] + (uint16_t) CPU->VAR[y] > 0xFF);

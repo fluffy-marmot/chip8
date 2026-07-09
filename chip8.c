@@ -191,8 +191,12 @@ decode_instruction(uint16_t instruction)
         }
         break;
     case 0x05: // 5XY0 - skip one instruction if VX equals VY
-        if (CPU->VAR[x] == CPU->VAR[y]) {
-            CPU->PC += 2;
+        if (n == 0x00) {
+            if (CPU->VAR[x] == CPU->VAR[y]) {
+                CPU->PC += 2;
+            }
+        } else {
+            debug_instruction(instruction);
         }
         break;
     case 0x06: // 6XNN - set register VX to NN
@@ -263,8 +267,12 @@ decode_instruction(uint16_t instruction)
 
         break;
     case 0x09: // 9XY0 - skip one instruction if VX doesn't equal VY
-        if (CPU->VAR[x] != CPU->VAR[y]) {
-            CPU->PC += 2;
+        if (n == 0x00) {
+            if (CPU->VAR[x] != CPU->VAR[y]) {
+                CPU->PC += 2;
+            }
+        } else {
+            debug_instruction(instruction);
         }
         break;
     case 0x0A: // ANNN - set index register

@@ -23,7 +23,8 @@
 
 const int FRAMES_PER_SECOND = 60;
 
-// kind of using the common convention 4x4 keypad on the left side of the keyboard
+// kind of using the common convention:
+// The keys used to activate CHIP-8's 4x4, 16 key, keypad: 1234 QWER ASDF ZXCV   
 SDL_Scancode KEYMAP[16] = {
     SDL_SCANCODE_X,  // 0
     SDL_SCANCODE_1,  // 1

@@ -21,7 +21,7 @@ bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
 bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = true;
 int  DISPLAY_WIDTH                        = 64;
 int  DISPLAY_HEIGHT                       = 32;
-int  INSTRUCTION_CYCLES_PER_FRAME         = 30;
+int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
 
 uint8_t FONT_SPRITES[] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0

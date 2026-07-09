@@ -156,7 +156,7 @@ int
 main(int argc, char *args[])
 {
     if (argc < 2) {
-        printf("Usage: %s <program>\n", args[0]);
+        printf("Usage: %s <.ch8 program>\n", args[0]);
         return 0;
     }
     if (!load_program(args[1])) {

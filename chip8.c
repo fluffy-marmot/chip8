@@ -19,6 +19,8 @@ bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = true;
 bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
 // if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
 bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = true;
+int  DISPLAY_WIDTH                        = 64;
+int  DISPLAY_HEIGHT                       = 32;
 int  INSTRUCTION_CYCLES_PER_FRAME         = 30;
 
 uint8_t FONT_SPRITES[] = {

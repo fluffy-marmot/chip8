@@ -11,6 +11,8 @@ extern bool USE_COSMAC_VIP_JUMP_WITH_OFFSET;
 extern bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW;
 extern bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP;
 extern bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR;
+extern int  DISPLAY_WIDTH;
+extern int  DISPLAY_HEIGHT;
 extern int  INSTRUCTION_CYCLES_PER_FRAME;
 
 /*
@@ -24,8 +26,6 @@ for example.
 */
 
 #define MEM_SIZE        (4 * 1024)
-#define DISPLAY_WIDTH   64
-#define DISPLAY_HEIGHT  32
 #define STACK_SIZE      64
 #define FONT_MEMLOC     0x050
 #define PROG_MEMLOC     0x200

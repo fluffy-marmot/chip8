@@ -6,15 +6,15 @@
 #include <time.h>
 
 // if true, 8XY6, 8XYE copy VX to VY before shift operation
-bool USE_COSMAC_VIP_SHIFT                 = true;
+bool USE_COSMAC_VIP_SHIFT                 = false;
 // if true, BNNN jump with offset instruction offsets by V0 instead of VX 
-bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
+bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = false;
 // if true, FX1E add VX to index instruction WILL NOT set VF to 1 on overflow (the original behavior)
 bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = true;
 // if true, FX55, Fx65 operations increment the index register
-bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
+bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = false;
 // if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
-bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = true;
+bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = false;
 int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
 
 typedef enum {
@@ -34,9 +34,9 @@ uint8_t *KEYPAD_PREV;
 uint8_t FLAG_REGISTERS[8];
 
 void
-load_font(const uint8_t font[], int memory_location)
+load_font(const uint8_t font[], size_t font_size, int memory_location)
 {
-    memcpy(MEM + memory_location, font, sizeof(font));
+    memcpy(MEM + memory_location, font, font_size);
 }
 
 bool
@@ -70,8 +70,8 @@ init_memory(instruction_set_t chip)
     }
 
     CPU->PC = PROG_MEMLOC;
-    load_font(FONT_CHIP8, FONT_MEMLOC_CHIP8);
-    load_font(FONT_SCHIP, FONT_MEMLOC_SCHIP);
+    load_font(FONT_CHIP8, FONT_MEMLOC_CHIP8, sizeof(FONT_MEMLOC_CHIP8));
+    load_font(FONT_SCHIP, FONT_MEMLOC_SCHIP, sizeof(FONT_MEMLOC_SCHIP));
     srand(time(NULL));
     return 1;
 }

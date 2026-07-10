@@ -58,6 +58,7 @@ static double audio_phase = 0.0;
 void
 window_draw()
 {
+    int pixel_size = DISPLAY->extended_mode ? PIXEL_SIZE / 2 : PIXEL_SIZE;
     SDL_Rect inner = {MARGIN, MARGIN, WIN_WIDTH - 2 * MARGIN, WIN_HEIGHT - 2 * MARGIN};
 
     SDL_FillRect(screenSurface, NULL, CLR_MARGIN);
@@ -66,10 +67,10 @@ window_draw()
     for (int x = 0; x < DISPLAY->width; x++) {
         for (int y = 0; y < DISPLAY->height; y++) {
             SDL_Rect pixel = {
-                MARGIN + x * PIXEL_SIZE + (x + 1) * BORDER,
-                MARGIN + y * PIXEL_SIZE + (y + 1) * BORDER,
-                PIXEL_SIZE,
-                PIXEL_SIZE
+                MARGIN + x * pixel_size + (x + 1) * BORDER,
+                MARGIN + y * pixel_size + (y + 1) * BORDER,
+                pixel_size,
+                pixel_size
             };
             uint8_t pixel_on = DISPLAY->pixels[y * DISPLAY->width_max + x];
             SDL_FillRect(screenSurface, &pixel, pixel_on ? CLR_PIXEL_ON : CLR_PIXEL_OFF);
@@ -164,7 +165,7 @@ main(int argc, char *args[])
         printf("Usage: %s <.ch8 program>\n", args[0]);
         return 0;
     }
-    if (!load_program(args[1])) {
+    if (!load_program(args[1], INSTRUCTION_SET_SCHIP)) { // TODO make ISA customizable
         printf("Error in CHIP-8 boot sequence\n");
     } else if (!window_init(args[1])) {
         printf("Failed to initialize SDL window\n");

@@ -1,12 +1,8 @@
 #include "chip8.h"
 
-// fopen, fseek, ftell, rewind, fread, fclose, SEEK_END
 #include <stdio.h>
-// malloc, calloc, srand, rand
 #include <stdlib.h>
-// memcpy, memset
 #include <string.h>
-// time
 #include <time.h>
 
 // if true, 8XY6, 8XYE copy VX to VY before shift operation
@@ -21,24 +17,14 @@ bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
 bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = true;
 int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
 
-uint8_t FONT_SPRITES[] = {
-    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-    0x20, 0x60, 0x20, 0x20, 0x70, // 1
-    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-    0xF0, 0x80, 0xF0, 0x80, 0x80  // F
-};
+typedef enum {
+    INSTRUCTION_OK,
+    INSTRUCTION_INVALID_CHIP8,
+    INSTRUCTION_INVALID_SCHIP,
+    INSTRUCTION_STACK_UNDERFLOW,
+    INSTRUCTION_STACK_OVERFLOW,
+} instruction_result_t;
+
 
 cpu_t *CPU;
 display_t *DISPLAY;
@@ -47,13 +33,13 @@ uint8_t *KEYPAD;
 uint8_t *KEYPAD_PREV;
 
 void
-load_font_sprites()
+load_font(const uint8_t font[], int memory_location)
 {
-    memcpy(MEM + FONT_MEMLOC, FONT_SPRITES, sizeof(FONT_SPRITES));
+    memcpy(MEM + memory_location, font, sizeof(font));
 }
 
 bool
-init_memory()
+init_memory(instruction_set_t chip)
 {
     free(CPU);
     if (DISPLAY) {
@@ -65,15 +51,16 @@ init_memory()
     free(KEYPAD_PREV);
 
     CPU = calloc(1, sizeof(cpu_t));
+    CPU->instruction_set = chip;
     DISPLAY = calloc(1, sizeof(display_t));
     if (!DISPLAY) {
         return 0;
     }
     DISPLAY->width = DISPLAY_WIDTH;
     DISPLAY->height = DISPLAY_HEIGHT;
-    DISPLAY->width_max = DISPLAY_WIDTH_MAX;
-    DISPLAY->height_max = DISPLAY_HEIGHT_MAX;
-    DISPLAY->pixels = calloc(DISPLAY_WIDTH_MAX * DISPLAY_HEIGHT_MAX, sizeof(uint8_t));
+    DISPLAY->width_max = (chip == INSTRUCTION_SET_CHIP8) ? DISPLAY_WIDTH : DISPLAY_WIDTH_EXT;
+    DISPLAY->height_max = (chip == INSTRUCTION_SET_CHIP8) ? DISPLAY_HEIGHT : DISPLAY_HEIGHT_EXT;
+    DISPLAY->pixels = calloc(DISPLAY->width_max * DISPLAY->height_max, sizeof(uint8_t));
     MEM = calloc(MEM_SIZE, sizeof(uint8_t));
     KEYPAD = calloc(16, sizeof(uint8_t));
     KEYPAD_PREV = calloc(16, sizeof(uint8_t));
@@ -82,7 +69,8 @@ init_memory()
     }
 
     CPU->PC = PROG_MEMLOC;
-    load_font_sprites();
+    load_font(FONT_CHIP8, FONT_MEMLOC_CHIP8);
+    load_font(FONT_SCHIP, FONT_MEMLOC_SCHIP);
     srand(time(NULL));
     return 1;
 }
@@ -151,7 +139,12 @@ draw_sprite(uint8_t x, uint8_t y, uint8_t number_rows)
 void
 debug_instruction(uint16_t instruction)
 {
-    printf("Unknown instruction %04X. Current PC: %04X\n", instruction, CPU->PC);
+    printf(
+        "Unknown instruction %04X. Current PC: %04X. Instruction set: %d\n", 
+        instruction, 
+        CPU->PC, 
+        CPU->instruction_set
+    );
 }
 
 uint16_t
@@ -162,8 +155,8 @@ fetch_instruction()
     return instruction;
 }
 
-bool
-decode_instruction(uint16_t instruction)
+instruction_result_t
+decode_instruction_chip8(uint16_t instruction)
 {
     // breakup the two instruction bytes into four "nibbles" (four half-bytes)
     uint8_t op = (uint8_t) ((instruction & 0xF000) >> 12);  // first nibble - broad instruction category
@@ -180,8 +173,7 @@ decode_instruction(uint16_t instruction)
             display_clear();
         } else if (instruction == 0x00EE) {     // 00EE instruction to return from subroutine
             if (CPU->stack_len == 0) {
-                printf("Got subroutine return instruction when stack empty\n");
-                return 0;
+                return INSTRUCTION_STACK_UNDERFLOW;
             }
             CPU->PC = CPU->stack[--CPU->stack_len];
         } else {
@@ -359,7 +351,7 @@ decode_instruction(uint16_t instruction)
             }
             break;
         case 0x29: // FX29 - set index register to "font address" of hex character VX's value (0 <= VX <= 0xF)
-            CPU->I = FONT_MEMLOC + ((CPU->VAR[x] & 0x0F) * 5);
+            CPU->I = FONT_MEMLOC_CHIP8 + ((CPU->VAR[x] & 0x0F) * 5);
             break;
         case 0x33: // FX33 - binary-coded decimal conversion
             /* takes the number in VX (which is one byte, so it can be any number from 0 to 255) and converts it
@@ -394,19 +386,41 @@ decode_instruction(uint16_t instruction)
     return 1;
 }
 
+instruction_result_t
+decode_instruction_schip(uint16_t instruction)
+{
+    return 1;
+}
+
 bool
 do_instruction_cycle()
 {
     uint16_t instruction = fetch_instruction();
-    bool result = decode_instruction(instruction);
+    instruction_result_t result = decode_instruction_chip8(instruction);
+    if (CPU->instruction_set == INSTRUCTION_SET_SCHIP || CPU->instruction_set == INSTRUCTION_SET_XOCHIP) {
+        result = decode_instruction_schip(instruction);
+    }
+
     memcpy(KEYPAD_PREV, KEYPAD, 16); // copy current keypad state to KEYPAD_PREV
-    return result;
+
+    switch (result) {
+    case INSTRUCTION_INVALID_CHIP8:
+    case INSTRUCTION_INVALID_SCHIP:
+        debug_instruction(instruction);
+        return 0;
+    case INSTRUCTION_STACK_UNDERFLOW:
+        printf("Got subroutine return instruction when stack empty\n");
+        return 0;
+    case INSTRUCTION_STACK_OVERFLOW:
+        return 0;
+    }
+    return 1;
 }
 
 bool
-load_program(char *filename)
+load_program(char *filename, instruction_set_t chip)
 {   
-    if (!init_memory()) {
+    if (!init_memory(chip)) {
         printf("Error initializing memory during boot sequence\n");
         return 0;
     }

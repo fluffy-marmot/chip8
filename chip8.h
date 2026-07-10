@@ -11,8 +11,6 @@ extern bool USE_COSMAC_VIP_JUMP_WITH_OFFSET;
 extern bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW;
 extern bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP;
 extern bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR;
-extern int  DISPLAY_WIDTH;
-extern int  DISPLAY_HEIGHT;
 extern int  INSTRUCTION_CYCLES_PER_FRAME;
 
 /*
@@ -25,10 +23,14 @@ actual programs, so they can be used to store some data on how to draw fonts,
 for example. 
 */
 
-#define MEM_SIZE        (4 * 1024)
-#define STACK_SIZE      64
-#define FONT_MEMLOC     0x050
-#define PROG_MEMLOC     0x200
+#define MEM_SIZE            (4 * 1024)
+#define STACK_SIZE          64
+#define FONT_MEMLOC         0x050
+#define PROG_MEMLOC         0x200
+#define DISPLAY_WIDTH       64
+#define DISPLAY_HEIGHT      32
+#define DISPLAY_WIDTH_MAX   64      // for later if implementing 128x64 superchip?
+#define DISPLAY_HEIGHT_MAX  32
 
 typedef struct {
     uint16_t PC;                    // Program counter (aka instruction pointer for program)
@@ -40,11 +42,19 @@ typedef struct {
     uint8_t  sound_timer;           // 8-but sound timer, same as delay timer, produces beep when nonzero
 } cpu_t;
 
-uint8_t display_get(uint8_t x, uint8_t y);
-bool do_instruction_cycle(void);
+typedef struct {
+    uint8_t  width;
+    uint8_t  height;
+    uint8_t  width_max;
+    uint8_t  height_max;
+    uint8_t *pixels;
+} display_t;
+
 bool load_program(char *filename);
-void keypad_set(uint8_t key, bool state);
+bool do_instruction_cycle(void);
 void timer_cycle(void);
+void keypad_set(uint8_t key, bool state);
 uint8_t get_sound_timer(void);
+display_t *get_display(void);
 
 #endif

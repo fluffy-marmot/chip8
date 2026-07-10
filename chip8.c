@@ -19,8 +19,6 @@ bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = true;
 bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
 // if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
 bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = true;
-int  DISPLAY_WIDTH                        = 64;
-int  DISPLAY_HEIGHT                       = 32;
 int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
 
 uint8_t FONT_SPRITES[] = {
@@ -43,8 +41,8 @@ uint8_t FONT_SPRITES[] = {
 };
 
 cpu_t *CPU;
+display_t *DISPLAY;
 uint8_t *MEM;
-uint8_t *DISPLAY;
 uint8_t *KEYPAD;
 uint8_t *KEYPAD_PREV;
 
@@ -58,15 +56,28 @@ bool
 init_memory()
 {
     free(CPU);
-    free(MEM);
+    if (DISPLAY) {
+        free(DISPLAY->pixels);
+    }
     free(DISPLAY);
+    free(MEM);
+    free(KEYPAD);
+    free(KEYPAD_PREV);
 
     CPU = calloc(1, sizeof(cpu_t));
+    DISPLAY = calloc(1, sizeof(display_t));
+    if (!DISPLAY) {
+        return 0;
+    }
+    DISPLAY->width = DISPLAY_WIDTH;
+    DISPLAY->height = DISPLAY_HEIGHT;
+    DISPLAY->width_max = DISPLAY_WIDTH_MAX;
+    DISPLAY->height_max = DISPLAY_HEIGHT_MAX;
+    DISPLAY->pixels = calloc(DISPLAY_WIDTH_MAX * DISPLAY_HEIGHT_MAX, sizeof(uint8_t));
     MEM = calloc(MEM_SIZE, sizeof(uint8_t));
-    DISPLAY = calloc(DISPLAY_WIDTH * DISPLAY_HEIGHT, sizeof(uint8_t));
     KEYPAD = calloc(16, sizeof(uint8_t));
     KEYPAD_PREV = calloc(16, sizeof(uint8_t));
-    if (!CPU || !MEM || !DISPLAY || !KEYPAD || !KEYPAD_PREV) {
+    if (!CPU || !MEM || !DISPLAY->pixels || !KEYPAD || !KEYPAD_PREV) {
         return 0;
     }
 
@@ -99,33 +110,39 @@ keypad_set(uint8_t key, bool state)
 void
 display_clear()
 {
-    memset(DISPLAY, 0, DISPLAY_WIDTH * DISPLAY_HEIGHT);
+    memset(DISPLAY->pixels, 0, DISPLAY->width_max * DISPLAY->height_max);
 }
 
 void
 display_xor(uint8_t x, uint8_t y, uint8_t val)
 {
-    DISPLAY[y * DISPLAY_WIDTH + x] ^= val;
+    DISPLAY->pixels[y * DISPLAY->width_max + x] ^= val;
 }
 
 uint8_t
-display_get(uint8_t x, uint8_t y)
+display_pixel(uint8_t x, uint8_t y)
 {
-    return DISPLAY[y * DISPLAY_WIDTH + x];
+    return DISPLAY->pixels[y * DISPLAY->width_max + x];
+}
+
+display_t *
+get_display()
+{
+    return DISPLAY;
 }
 
 void
 draw_sprite(uint8_t x, uint8_t y, uint8_t number_rows)
 {
-    x = x % DISPLAY_WIDTH;
-    y = y % DISPLAY_HEIGHT;
+    x = x % DISPLAY->width;
+    y = y % DISPLAY->height;
     CPU->VAR[0X0F] = 0;
 
-    for (uint8_t dy = 0; dy < number_rows && y + dy < DISPLAY_HEIGHT; dy++) {
+    for (uint8_t dy = 0; dy < number_rows && y + dy < DISPLAY->height; dy++) {
         uint8_t sprite_row = MEM[CPU->I + dy];
-        for (uint8_t dx = 0; dx < 8 && x + dx < DISPLAY_WIDTH; dx++) {
+        for (uint8_t dx = 0; dx < 8 && x + dx < DISPLAY->width; dx++) {
             uint8_t pixel_bit = sprite_row >> (7 - dx) & 0x01;
-            CPU->VAR[0X0F] |= (display_get(x + dx, y + dy) & pixel_bit) > 0;
+            CPU->VAR[0X0F] |= (display_pixel(x + dx, y + dy) & pixel_bit) > 0;
             display_xor(x + dx, y + dy, pixel_bit);
         }
     }

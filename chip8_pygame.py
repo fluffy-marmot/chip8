@@ -8,7 +8,7 @@ import pygame
 
 MARGIN     = 10
 BORDER     = 0
-PIXEL_SIZE = 18
+PIXEL_SIZE = 20
 
 CLR_MARGIN     = "grey"
 CLR_BORDER     = "cyan"
@@ -22,6 +22,15 @@ KEYMAP = {
     pygame.KSCAN_A: 0x7, pygame.KSCAN_S: 0x8, pygame.KSCAN_D: 0x9, pygame.KSCAN_F: 0xE,
     pygame.KSCAN_Z: 0xA, pygame.KSCAN_X: 0x0, pygame.KSCAN_C: 0xB, pygame.KSCAN_V: 0xF,
 }
+
+class Display(ctypes.Structure):
+    _fields_ = [
+        ("width", ctypes.c_uint8),
+        ("height", ctypes.c_uint8),
+        ("width_max", ctypes.c_uint8),
+        ("height_max", ctypes.c_uint8),
+        ("pixels", ctypes.POINTER(ctypes.c_uint8)),
+    ]
 
 
 def make_beep(freq:int=440, duration:float=1.0, sample_rate:int=44100, volume:float=0.3):
@@ -37,11 +46,9 @@ def make_beep(freq:int=440, duration:float=1.0, sample_rate:int=44100, volume:fl
 
 
 def get_window_dimensions() -> tuple[int, int]:
-    display_w = ctypes.c_int.in_dll(CHIP8, "DISPLAY_WIDTH").value
-    display_h = ctypes.c_int.in_dll(CHIP8, "DISPLAY_HEIGHT").value
     return (
-        2 * MARGIN + PIXEL_SIZE * display_w + BORDER * (display_w + 1),
-        2 * MARGIN + PIXEL_SIZE * display_h + BORDER * (display_h + 1)
+        2 * MARGIN + PIXEL_SIZE * DISPLAY.width + BORDER * (DISPLAY.width + 1),
+        2 * MARGIN + PIXEL_SIZE * DISPLAY.height + BORDER * (DISPLAY.height + 1)
     )
 
 
@@ -49,11 +56,12 @@ def window_draw(screen: pygame.Surface, win_w: int, win_h: int) -> None:
     pygame.draw.rect(screen, CLR_MARGIN, (0, 0, win_w, win_h))
     pygame.draw.rect(screen, CLR_BORDER, (MARGIN, MARGIN, win_w - 2 * MARGIN, win_h - 2 * MARGIN))
 
-    for x in range(ctypes.c_int.in_dll(CHIP8, "DISPLAY_WIDTH").value):
-        for y in range(ctypes.c_int.in_dll(CHIP8, "DISPLAY_HEIGHT").value):
+    for x in range(DISPLAY.width):
+        for y in range(DISPLAY.height):
+            pixel_on = DISPLAY.pixels[y * DISPLAY.width_max + x]
             pygame.draw.rect(
                 screen,
-                CLR_PIXEL_ON if CHIP8.display_get(x, y) else CLR_PIXEL_OFF,
+                CLR_PIXEL_ON if pixel_on else CLR_PIXEL_OFF,
                 (
                     MARGIN + x * PIXEL_SIZE + (x + 1) * BORDER,
                     MARGIN + y * PIXEL_SIZE + (y + 1) * BORDER,
@@ -64,7 +72,7 @@ def window_draw(screen: pygame.Surface, win_w: int, win_h: int) -> None:
     
 
 def main() -> None:
-    global CHIP8
+    global CHIP8, DISPLAY
     if len(sys.argv) != 2:
         sys.exit(f"Usage: python {sys.argv[0]} <.ch8 program>")
     elif not pathlib.Path(sys.argv[1]).exists():
@@ -72,6 +80,9 @@ def main() -> None:
     try:
         CHIP8 = ctypes.CDLL("./chip8.so")
         CHIP8.load_program(sys.argv[1].encode())
+        CHIP8.get_display.restype = ctypes.POINTER(Display)
+        DISPLAY = CHIP8.get_display().contents
+
         win_w, win_h = get_window_dimensions()
     except Exception as e:
         print(e)

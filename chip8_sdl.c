@@ -8,8 +8,11 @@
 #include <string.h>
 
 #define MARGIN      10
-#define BORDER      1
-#define PIXEL_SIZE  25
+#define BORDER      0
+#define PIXEL_SIZE  20
+
+#define WIN_WIDTH  (2 * MARGIN + PIXEL_SIZE * DISPLAY->width + BORDER * (DISPLAY->width + 1))
+#define WIN_HEIGHT (2 * MARGIN + PIXEL_SIZE * DISPLAY->height + BORDER * (DISPLAY->height + 1))
 
 #define CLR_MARGIN      SDL_MapRGB(screenSurface->format, 0x40, 0x40, 0x40)
 #define CLR_BORDER      SDL_MapRGB(screenSurface->format, 0x90, 0xC0, 0xC0)
@@ -47,6 +50,7 @@ SDL_Scancode KEYMAP[16] = {
 SDL_Window *window;
 SDL_Surface *screenSurface;
 SDL_AudioDeviceID audio_device;
+static display_t *DISPLAY;
 
 bool audio_on = false;
 static double audio_phase = 0.0;
@@ -54,22 +58,21 @@ static double audio_phase = 0.0;
 void
 window_draw()
 {
-    int width = 2 * MARGIN + PIXEL_SIZE * DISPLAY_WIDTH + BORDER * (DISPLAY_WIDTH + 1);
-    int height = 2 * MARGIN + PIXEL_SIZE * DISPLAY_HEIGHT + BORDER * (DISPLAY_HEIGHT + 1);
-    SDL_Rect inner = {MARGIN, MARGIN, width - 2 * MARGIN, height - 2 * MARGIN};
+    SDL_Rect inner = {MARGIN, MARGIN, WIN_WIDTH - 2 * MARGIN, WIN_HEIGHT - 2 * MARGIN};
 
     SDL_FillRect(screenSurface, NULL, CLR_MARGIN);
     SDL_FillRect(screenSurface, &inner, CLR_BORDER);
 
-    for (int x = 0; x < DISPLAY_WIDTH; x++) {
-        for (int y = 0; y < DISPLAY_HEIGHT; y++) {
+    for (int x = 0; x < DISPLAY->width; x++) {
+        for (int y = 0; y < DISPLAY->height; y++) {
             SDL_Rect pixel = {
                 MARGIN + x * PIXEL_SIZE + (x + 1) * BORDER,
                 MARGIN + y * PIXEL_SIZE + (y + 1) * BORDER,
                 PIXEL_SIZE,
                 PIXEL_SIZE
             };
-            SDL_FillRect(screenSurface, &pixel, display_get(x, y) ? CLR_PIXEL_ON : CLR_PIXEL_OFF);
+            uint8_t pixel_on = DISPLAY->pixels[y * DISPLAY->width_max + x];
+            SDL_FillRect(screenSurface, &pixel, pixel_on ? CLR_PIXEL_ON : CLR_PIXEL_OFF);
         }
     }
 
@@ -80,6 +83,7 @@ window_draw()
 bool
 window_init(char *rom_name)
 {
+    DISPLAY = get_display();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 0;
@@ -91,8 +95,8 @@ window_init(char *rom_name)
             window_title,
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
-            2 * MARGIN + PIXEL_SIZE * DISPLAY_WIDTH + BORDER * (DISPLAY_WIDTH + 1),
-            2 * MARGIN + PIXEL_SIZE * DISPLAY_HEIGHT + BORDER * (DISPLAY_HEIGHT + 1),
+            WIN_WIDTH,
+            WIN_HEIGHT,
             SDL_WINDOW_SHOWN
         );
         free(window_title);

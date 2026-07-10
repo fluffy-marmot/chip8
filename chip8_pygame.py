@@ -4,7 +4,6 @@ import math
 import pathlib
 import sys
 
-import numpy
 import pygame
 
 MARGIN     = 10

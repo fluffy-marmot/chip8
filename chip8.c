@@ -31,6 +31,7 @@ display_t *DISPLAY;
 uint8_t *MEM;
 uint8_t *KEYPAD;
 uint8_t *KEYPAD_PREV;
+uint8_t FLAG_REGISTERS[8];
 
 void
 load_font(const uint8_t font[], int memory_location)
@@ -120,39 +121,25 @@ get_display()
 }
 
 void
-draw_sprite(uint8_t x, uint8_t y, uint8_t number_rows)
+draw_sprite(uint8_t x, uint8_t y, uint8_t number_rows, uint8_t width)
 {
     x = x % DISPLAY->width;
     y = y % DISPLAY->height;
     CPU->VAR[0X0F] = 0;
+    uint16_t sprite_row;
 
     for (uint8_t dy = 0; dy < number_rows && y + dy < DISPLAY->height; dy++) {
-        uint8_t sprite_row = MEM[CPU->I + dy];
-        for (uint8_t dx = 0; dx < 8 && x + dx < DISPLAY->width; dx++) {
-            uint8_t pixel_bit = sprite_row >> (7 - dx) & 0x01;
+        if (width == 8) {
+            sprite_row = MEM[CPU->I + dy];
+        } else if (width == 16) {
+            sprite_row = (MEM[CPU->I + 2 * dy] << 8) | MEM[CPU->I + 2 * dy + 1];
+        }
+        for (uint8_t dx = 0; dx < width && x + dx < DISPLAY->width; dx++) {
+            uint8_t pixel_bit = sprite_row >> (width - 1 - dx) & 0x01;
             CPU->VAR[0X0F] |= (display_pixel(x + dx, y + dy) & pixel_bit) > 0;
             display_xor(x + dx, y + dy, pixel_bit);
-        }
+        } 
     }
-}
-
-void
-debug_instruction(uint16_t instruction)
-{
-    printf(
-        "Unknown instruction %04X. Current PC: %04X. Instruction set: %d\n", 
-        instruction, 
-        CPU->PC, 
-        CPU->instruction_set
-    );
-}
-
-uint16_t
-fetch_instruction()
-{
-    uint16_t instruction = (MEM[CPU->PC] << 8) | MEM[CPU->PC + 1];
-    CPU->PC += 2;
-    return instruction;
 }
 
 instruction_result_t
@@ -177,7 +164,7 @@ decode_instruction_chip8(uint16_t instruction)
             }
             CPU->PC = CPU->stack[--CPU->stack_len];
         } else {
-            debug_instruction(instruction);
+            return INSTRUCTION_INVALID_CHIP8;
         }
         break;
     case 0x01: // 1NNN jump instruction, using other 12 bits as memory address
@@ -185,8 +172,7 @@ decode_instruction_chip8(uint16_t instruction)
         break;
     case 0x02: // 2NNN subroutine instruction, similar to 1NNN but push current address on stack
         if (CPU->stack_len == STACK_SIZE) {
-            printf("Subroutine stack size overflow\n");
-            return 0;
+            return INSTRUCTION_STACK_OVERFLOW;
         }
         CPU->stack[CPU->stack_len++] = CPU->PC;
         CPU->PC = instruction & 0x0FFF;
@@ -207,7 +193,7 @@ decode_instruction_chip8(uint16_t instruction)
                 CPU->PC += 2;
             }
         } else {
-            debug_instruction(instruction);
+            return INSTRUCTION_INVALID_CHIP8;
         }
         break;
     case 0x06: // 6XNN - set register VX to NN
@@ -272,8 +258,7 @@ decode_instruction_chip8(uint16_t instruction)
             CPU->VAR[0X0F] = flag;
             break;
         default:
-            debug_instruction(instruction);
-            break;
+            return INSTRUCTION_INVALID_CHIP8;
         }
 
         break;
@@ -283,7 +268,7 @@ decode_instruction_chip8(uint16_t instruction)
                 CPU->PC += 2;
             }
         } else {
-            debug_instruction(instruction);
+            return INSTRUCTION_INVALID_CHIP8;
         }
         break;
     case 0x0A: // ANNN - set index register
@@ -300,7 +285,7 @@ decode_instruction_chip8(uint16_t instruction)
         CPU->VAR[x] = (uint8_t) (rand() % 256) & nn;
         break;
     case 0x0D: // DXYN - draw instruction ?
-        draw_sprite(CPU->VAR[x], CPU->VAR[y], n);
+        draw_sprite(CPU->VAR[x], CPU->VAR[y], n, 8);
         break;
     case 0x0E: // Skip if key pressed (or not pressed) instructions
         if (nn == 0x9E) { // EX9E - skip instruction if key VX is pressed
@@ -312,7 +297,7 @@ decode_instruction_chip8(uint16_t instruction)
                 CPU->PC += 2;
             }
         } else {
-            debug_instruction(instruction);
+            return INSTRUCTION_INVALID_CHIP8;
         }
         break;
     case 0x0F:
@@ -377,27 +362,89 @@ decode_instruction_chip8(uint16_t instruction)
             }
             break;
         default:
-            debug_instruction(instruction);
-            break;
+            return INSTRUCTION_INVALID_CHIP8;
         }
         break;
     }
 
-    return 1;
+    return INSTRUCTION_OK;
 }
 
 instruction_result_t
 decode_instruction_schip(uint16_t instruction)
 {
-    return 1;
+    // TODO - repetition - refactor later?
+    // breakup the two instruction bytes into four "nibbles" (four half-bytes)
+    uint8_t op = (uint8_t) ((instruction & 0xF000) >> 12);  // first nibble - broad instruction category
+    uint8_t x  = (uint8_t) ((instruction & 0x0F00) >>  8);  // mostly used to refer to a register
+    uint8_t y  = (uint8_t) ((instruction & 0x00F0) >>  4);  // mostly used to refer to a register
+    uint8_t n  = (uint8_t) ((instruction & 0x000F)      );  // a 4-bit number
+
+    uint8_t nn = (uint8_t) ((instruction & 0x00FF)      );  // the whole second byte
+    uint8_t flag;
+
+    if        (instruction == 0x00FB) { // 00FB - scroll right by 4
+        memmove(DISPLAY->pixels + 4, DISPLAY->pixels, DISPLAY->height_max * DISPLAY->width_max - 4);
+        for (uint8_t r = 0; r < DISPLAY->height; r++) {
+            DISPLAY->pixels[r * DISPLAY->width_max + 0] = 
+            DISPLAY->pixels[r * DISPLAY->width_max + 1] =
+            DISPLAY->pixels[r * DISPLAY->width_max + 2] = 
+            DISPLAY->pixels[r * DISPLAY->width_max + 3] = 0;
+        }
+    } else if (instruction == 0x00FC) { // 00FC - scroll left  by 4
+        memmove(DISPLAY->pixels, DISPLAY->pixels + 4, DISPLAY->height_max * DISPLAY->width_max - 4);
+        for (uint8_t r = 1; r <= DISPLAY->height; r++) {
+            DISPLAY->pixels[r * DISPLAY->width_max - 1] = 
+            DISPLAY->pixels[r * DISPLAY->width_max - 2] =
+            DISPLAY->pixels[r * DISPLAY->width_max - 3] = 
+            DISPLAY->pixels[r * DISPLAY->width_max - 4] = 0;
+        }
+    } else if (instruction == 0x00FD) { // 00FD - exit
+        // TODO - guess I'd need a program in front 512B of mem to do something fun?
+    } else if (instruction == 0x00FE) { // 00FE - disable hi-res
+        DISPLAY->extended_mode = 0;
+        display_clear();
+    } else if (instruction == 0x00FF) { // 00FF - enable hi-res
+        DISPLAY->extended_mode = 1;
+        display_clear();
+    } else if ((instruction & 0xFFF0) == 0x00C0) { // 00CN - scroll down N (as in move pixel data down)
+        memmove(
+            DISPLAY->pixels + DISPLAY->width_max * n, 
+            DISPLAY->pixels, 
+            DISPLAY->width_max * (DISPLAY->height_max - n)
+        );
+        memset(DISPLAY->pixels, 0, DISPLAY->width_max * n);
+    } else if ((instruction & 0xF00F) == 0xD000) { // DXY0 - draw 16x16 sprite (or quirk TODO: maaaybe 8x16...)
+        draw_sprite(CPU->VAR[x], CPU->VAR[y], 16, 16);
+    } else if ((instruction & 0xF0FF) == 0xF030) { // FX30 - set I to address of large font X character
+        CPU->I = FONT_MEMLOC_SCHIP + ((CPU->VAR[x] & 0x0F) * 10);
+    } else if ((instruction & 0xF0FF) == 0xF075) { // FX75 - save V0 - VX to flag registers
+        if (x > 0x07) { // only enough flag registers for 8 bytes
+            return INSTRUCTION_INVALID_SCHIP;
+        }
+        memcpy(FLAG_REGISTERS, CPU->VAR, x + 1);
+    } else if ((instruction & 0xF0FF) == 0xF085) { // FX85 - restore V0 - VX from flag registers
+        if (x > 0x07) { // only enough flag registers for 8 bytes
+            return INSTRUCTION_INVALID_SCHIP;
+        }
+        memcpy(CPU->VAR, FLAG_REGISTERS, x + 1);
+    } else {
+        return INSTRUCTION_INVALID_SCHIP;
+    }
+
+    return INSTRUCTION_OK;
 }
 
 bool
 do_instruction_cycle()
-{
-    uint16_t instruction = fetch_instruction();
+{   
+    // fetch current instruction two bytes and increment pointer by 2
+    uint16_t instruction = (MEM[CPU->PC] << 8) | MEM[CPU->PC + 1];
+    CPU->PC += 2;
+
+    // decode and execute instruction
     instruction_result_t result = decode_instruction_chip8(instruction);
-    if (CPU->instruction_set == INSTRUCTION_SET_SCHIP || CPU->instruction_set == INSTRUCTION_SET_XOCHIP) {
+    if (result != INSTRUCTION_OK && CPU->instruction_set > INSTRUCTION_SET_CHIP8) {
         result = decode_instruction_schip(instruction);
     }
 
@@ -406,12 +453,18 @@ do_instruction_cycle()
     switch (result) {
     case INSTRUCTION_INVALID_CHIP8:
     case INSTRUCTION_INVALID_SCHIP:
-        debug_instruction(instruction);
+        printf(
+            "Unknown instruction %04X. Current PC: %04X. Instruction set: %d\n", 
+            instruction, 
+            CPU->PC, 
+            CPU->instruction_set
+        );
         return 0;
     case INSTRUCTION_STACK_UNDERFLOW:
         printf("Got subroutine return instruction when stack empty\n");
         return 0;
     case INSTRUCTION_STACK_OVERFLOW:
+        printf("Subroutine stack overflow\n");
         return 0;
     }
     return 1;

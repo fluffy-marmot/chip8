@@ -5,17 +5,17 @@
 #include <string.h>
 #include <time.h>
 
-// if true, 8XY6, 8XYE copy VX to VY before shift operation
-bool USE_COSMAC_VIP_SHIFT                 = false;
+// if true, 8XY6, 8XYE copy VY to VX before shift operation
+bool USE_COSMAC_VIP_SHIFT                 = true;                                 // inverted from DB 'shift'
 // if true, BNNN jump with offset instruction offsets by V0 instead of VX 
-bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = false;
-// if true, FX1E add VX to index instruction WILL NOT set VF to 1 on overflow (the original behavior)
+bool USE_COSMAC_VIP_JUMP_WITH_OFFSET      = true;
+// if true, FX1E add VX to index instruction WILL NOT set VF to 1 on overflow
 bool USE_COSMAC_VIP_ADD_TO_INDEX_OVERFLOW = true;
-// if true, FX55, Fx65 operations increment the index register
-bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = false;
+// if true, FX55, Fx65 operations increment the index register                  
+bool USE_COSMAC_VIP_INC_INDEX_ON_MEM_CP   = true;
 // if true - 8XY1, 8XY2, 8XY3 set flag register VF to 0
-bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = false;
-int  INSTRUCTION_CYCLES_PER_FRAME         = 12;
+bool USE_COSMAC_VIP_VF_RESET_AND_OR_XOR   = true;
+int  INSTRUCTION_CYCLES_PER_FRAME         = 1000;
 
 typedef enum {
     INSTRUCTION_OK,
@@ -70,8 +70,8 @@ init_memory(instruction_set_t chip)
     }
 
     CPU->PC = PROG_MEMLOC;
-    load_font(FONT_CHIP8, FONT_MEMLOC_CHIP8, sizeof(FONT_MEMLOC_CHIP8));
-    load_font(FONT_SCHIP, FONT_MEMLOC_SCHIP, sizeof(FONT_MEMLOC_SCHIP));
+    load_font(FONT_CHIP8, sizeof(FONT_CHIP8), FONT_MEMLOC_CHIP8);
+    load_font(FONT_SCHIP, sizeof(FONT_SCHIP), FONT_MEMLOC_SCHIP);
     srand(time(NULL));
     return 1;
 }
@@ -449,6 +449,13 @@ do_instruction_cycle()
     uint16_t instruction = (MEM[CPU->PC] << 8) | MEM[CPU->PC + 1];
     CPU->PC += 2;
 
+    // printf(
+    //         "INSTRUCTION %04X. Current PC: %04X. Instruction set: %d\n", 
+    //         instruction, 
+    //         CPU->PC, 
+    //         CPU->instruction_set
+    //     );
+    
     // decode and execute instruction
     instruction_result_t result = decode_instruction_chip8(instruction);
     if (result == INSTRUCTION_INVALID_CHIP8 && CPU->instruction_set > INSTRUCTION_SET_CHIP8) {

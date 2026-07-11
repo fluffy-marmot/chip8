@@ -403,9 +403,13 @@ decode_instruction_schip(uint16_t instruction)
         // TODO - guess I'd need a program in front 512B of mem to do something fun?
     } else if (instruction == 0x00FE) { // 00FE - disable hi-res
         DISPLAY->extended_mode = 0;
+        DISPLAY->width = DISPLAY_WIDTH;
+        DISPLAY->height = DISPLAY_HEIGHT;
         display_clear();
     } else if (instruction == 0x00FF) { // 00FF - enable hi-res
         DISPLAY->extended_mode = 1;
+        DISPLAY->width = DISPLAY_WIDTH_EXT;
+        DISPLAY->height = DISPLAY_HEIGHT_EXT;
         display_clear();
     } else if ((instruction & 0xFFF0) == 0x00C0) { // 00CN - scroll down N (as in move pixel data down)
         memmove(

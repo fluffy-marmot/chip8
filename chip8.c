@@ -285,6 +285,9 @@ decode_instruction_chip8(uint16_t instruction)
         CPU->VAR[x] = (uint8_t) (rand() % 256) & nn;
         break;
     case 0x0D: // DXYN - draw instruction ?
+        if (n == 0 && CPU->instruction_set > INSTRUCTION_SET_CHIP8) {
+            return INSTRUCTION_INVALID_CHIP8;
+        }
         draw_sprite(CPU->VAR[x], CPU->VAR[y], n, 8);
         break;
     case 0x0E: // Skip if key pressed (or not pressed) instructions
@@ -448,7 +451,7 @@ do_instruction_cycle()
 
     // decode and execute instruction
     instruction_result_t result = decode_instruction_chip8(instruction);
-    if (result != INSTRUCTION_OK && CPU->instruction_set > INSTRUCTION_SET_CHIP8) {
+    if (result == INSTRUCTION_INVALID_CHIP8 && CPU->instruction_set > INSTRUCTION_SET_CHIP8) {
         result = decode_instruction_schip(instruction);
     }
 
